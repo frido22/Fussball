@@ -70,19 +70,19 @@ function App() {
         const inShootRange = Math.abs(carrier.x - goalX) < 0.15
         const timeDribbling = time - g.actionTime
 
-        if (inShootRange && timeDribbling > 500 && Math.random() < 0.008) {
+        if (inShootRange && timeDribbling > 400 && Math.random() < 0.012) {
           g.phase = 'shoot'
           g.shotTarget = { x: goalX, y: 0.4 + Math.random() * 0.2 }
           g.passFrom = { x: carrier.x, y: carrier.y }
           g.shotT = 0
           g.actionTime = time
-        } else if (timeDribbling > 1500 && (pressure > 0.6 || timeDribbling > 3500 || Math.random() < 0.005)) {
+        } else if (timeDribbling > 1000 && (pressure > 0.5 || timeDribbling > 2500 || Math.random() < 0.008)) {
           const targets = attacking.filter((p, i) => i !== g.carrier && p.role !== 'GK')
           if (targets.length) {
             const best = targets.reduce((best, p) => {
               const forward = g.poss === 'A' ? p.x - carrier.x : carrier.x - p.x
               const defDist = defending.reduce((min, d) => Math.min(min, dist(p, d)), 1)
-              const score = forward * 2 + defDist * 3 + Math.random() * 0.5
+              const score = forward * 3 + defDist * 2 + Math.random() * 0.4
               return score > best.score ? { p, score } : best
             }, { p: targets[0], score: -Infinity }).p
 
@@ -148,13 +148,13 @@ function App() {
       const moveTeam = (players, base, isAtt) => {
         players.forEach((p, i) => {
           const b = base[i]
-          let tx = b.x + (g.ball.x - 0.5) * 0.18
+          let tx = b.x + (g.ball.x - 0.5) * 0.22
           let ty = b.y + (g.ball.y - 0.5) * 0.12
-          tx += isAtt ? 0.05 : -0.03
+          tx += isAtt ? 0.08 : -0.03
 
           if (isAtt && g.carrier === i && g.phase === 'dribble') {
-            tx = p.x + g.dribbleDir.x * 0.06
-            ty = p.y + g.dribbleDir.y * 0.04
+            tx = p.x + g.dribbleDir.x * 0.08
+            ty = p.y + g.dribbleDir.y * 0.05
           }
           if (!isAtt && p.role === 'DEF') {
             const attCarrier = attacking[g.carrier]
