@@ -318,7 +318,7 @@ function App() {
 
             let bg = 'transparent', border = 'rgba(255,255,255,0.05)'
             if (hover && !bet) { bg = 'rgba(255,255,255,0.15)'; border = 'rgba(255,255,255,0.3)' }
-            if (bet) { bg = 'rgba(59,130,246,0.5)'; border = 'rgba(59,130,246,0.8)' }
+            if (bet) { bg = 'rgba(255,255,255,0.25)'; border = 'rgba(255,255,255,0.5)' }
             if (fx) bg = fx.win ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.5)'
 
             return (
