@@ -283,17 +283,10 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center p-2 sm:p-4">
-      <div className="w-full max-w-4xl mb-3 flex justify-between items-center px-2">
-        <div className="bg-yellow-500/20 border border-yellow-500/40 rounded-lg px-3 py-1.5">
-          <span className="text-yellow-400 text-sm sm:text-lg font-bold">{coins}</span>
-          <span className="text-yellow-400/60 text-xs ml-1">coins</span>
-        </div>
-        <div className="flex gap-4 text-xs sm:text-sm">
-          <span className="text-green-400"><b>{wins}</b> <span className="opacity-60">W</span></span>
-          <span className="text-red-400"><b>{losses}</b> <span className="opacity-60">L</span></span>
-        </div>
+      <div className="w-full max-w-4xl mb-2 flex justify-between items-center px-1 text-white/60 text-xs sm:text-sm">
+        <span>{coins} coins</span>
+        <span>{wins}W / {losses}L</span>
       </div>
-      <div className="text-white/40 text-[10px] sm:text-xs mb-2">Hover to see odds. Click to bet {BET_COST} coins.</div>
 
       <div className="relative w-full max-w-4xl aspect-[3/2] rounded-lg overflow-hidden shadow-2xl">
         <div className="absolute inset-0 flex">
@@ -364,12 +357,6 @@ function App() {
         {coinAnims.map(a => <div key={a.id} className="absolute text-yellow-400 font-bold text-xl pointer-events-none" style={{ left: '50%', top: '40%', animation: 'coinFloat 1.2s ease-out forwards', zIndex: 30 }}>+{a.amt}</div>)}
       </div>
 
-      <div className="mt-3 flex gap-4 text-[10px] sm:text-xs text-white/50">
-        <span className="text-green-400/70">1.5-2x</span>
-        <span className="text-yellow-400/70">3-5x</span>
-        <span className="text-orange-400/70">7-15x</span>
-        <span className="ml-2"><span className="inline-block w-2 h-2 rounded-full bg-red-600 mr-1" />vs<span className="inline-block w-2 h-2 rounded-full bg-blue-600 ml-1" /></span>
-      </div>
       <style>{`@keyframes coinFloat { 0% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -60px) scale(1.3); } }`}</style>
     </div>
   )
