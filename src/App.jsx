@@ -192,40 +192,49 @@ function App() {
     return () => cancelAnimationFrame(animId)
   }, [])
 
-  // Bet checking - check along ball path for fast-moving ball
+  // Bet checking - check along ball path and immediately resolve wins
   const checkBets = useCallback((fromX, fromY, toX, toY) => {
-    setBets(prev => prev.map(b => {
-      if (b.resolved || b.hit) return b
-      // Check multiple points along the path
-      for (let t = 0; t <= 1; t += 0.1) {
-        const px = fromX + (toX - fromX) * t
-        const py = fromY + (toY - fromY) * t
-        const cx = Math.floor(px * GRID_COLS), cy = Math.floor(py * GRID_ROWS)
-        if (cx === b.cx && cy === b.cy) return { ...b, hit: true }
-      }
-      return b
-    }))
+    setBets(prev => {
+      let hasWin = false
+      const updated = prev.map(b => {
+        if (b.resolved || b.hit) return b
+        // Check multiple points along the path
+        for (let t = 0; t <= 1; t += 0.1) {
+          const px = fromX + (toX - fromX) * t
+          const py = fromY + (toY - fromY) * t
+          const cx = Math.floor(px * GRID_COLS), cy = Math.floor(py * GRID_ROWS)
+          if (cx === b.cx && cy === b.cy) {
+            // Immediately resolve as win
+            const win = Math.floor(BET_COST * b.mult)
+            setCoins(c => c + win)
+            setWins(w => w + 1)
+            setEffects(e => [...e, { id: b.id, cx: b.cx, cy: b.cy, win: true, t: Date.now() }])
+            setCoinAnims(a => [...a, { id: b.id, amt: win, t: Date.now() }])
+            hasWin = true
+            return { ...b, hit: true, resolved: true }
+          }
+        }
+        return b
+      })
+      return updated
+    })
   }, [])
   checkBetsRef.current = checkBets
 
-  // Bet resolution
+  // Bet resolution - only handles losses (wins resolved immediately in checkBets)
   useEffect(() => {
     const resolve = () => {
       const now = Date.now()
       setBets(prev => {
-        const active = [], done = []
-        prev.forEach(b => (b.resolved || now < b.end ? active : done).push(b))
-        done.forEach(b => {
-          if (b.hit) {
-            const win = Math.floor(BET_COST * b.mult)
-            setCoins(c => c + win)
-            setWins(w => w + 1)
-            setEffects(e => [...e, { id: b.id, cx: b.cx, cy: b.cy, win: true, t: now }])
-            setCoinAnims(a => [...a, { id: b.id, amt: win, t: now }])
-          } else {
-            setLosses(l => l + 1)
-            setEffects(e => [...e, { id: b.id, cx: b.cx, cy: b.cy, win: false, t: now }])
-          }
+        const active = [], expired = []
+        prev.forEach(b => {
+          if (b.resolved) return // already resolved (won)
+          if (now < b.end) active.push(b) // still active
+          else expired.push(b) // time's up, lost
+        })
+        expired.forEach(b => {
+          setLosses(l => l + 1)
+          setEffects(e => [...e, { id: b.id, cx: b.cx, cy: b.cy, win: false, t: now }])
         })
         return active
       })
