@@ -317,10 +317,7 @@ function App() {
             const left = bet ? Math.max(0, (bet.end - Date.now()) / 1000) : 0
 
             let bg = 'transparent', border = 'rgba(255,255,255,0.05)'
-            if (hover && !bet) {
-              bg = mult <= 2 ? 'rgba(34,197,94,0.3)' : mult <= 5 ? 'rgba(234,179,8,0.3)' : 'rgba(249,115,22,0.3)'
-              border = 'rgba(255,255,255,0.4)'
-            }
+            if (hover && !bet) { bg = 'rgba(255,255,255,0.15)'; border = 'rgba(255,255,255,0.3)' }
             if (bet) { bg = 'rgba(59,130,246,0.5)'; border = 'rgba(59,130,246,0.8)' }
             if (fx) bg = fx.win ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.5)'
 
