@@ -247,7 +247,9 @@ function App() {
   }, [])
 
   const placeBet = useCallback((cx, cy) => {
-    if (coins < BET_COST || bets.find(b => b.cx === cx && b.cy === cy && !b.resolved)) return
+    const { ball } = game.current
+    const ballCx = Math.floor(ball.x * GRID_COLS), ballCy = Math.floor(ball.y * GRID_ROWS)
+    if (coins < BET_COST || cx === ballCx && cy === ballCy || bets.find(b => b.cx === cx && b.cy === cy && !b.resolved)) return
     setCoins(c => c - BET_COST)
     setBets(prev => [...prev, {
       id: Date.now(), cx, cy,
