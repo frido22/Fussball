@@ -194,30 +194,22 @@ function App() {
 
   // Bet checking - check along ball path and immediately resolve wins
   const checkBets = useCallback((fromX, fromY, toX, toY) => {
-    setBets(prev => {
-      let hasWin = false
-      const updated = prev.map(b => {
-        if (b.resolved || b.hit) return b
-        // Check multiple points along the path
-        for (let t = 0; t <= 1; t += 0.1) {
-          const px = fromX + (toX - fromX) * t
-          const py = fromY + (toY - fromY) * t
-          const cx = Math.floor(px * GRID_COLS), cy = Math.floor(py * GRID_ROWS)
-          if (cx === b.cx && cy === b.cy) {
-            // Immediately resolve as win
-            const win = Math.floor(BET_COST * b.mult)
-            setCoins(c => c + win)
-            setWins(w => w + 1)
-            setEffects(e => [...e, { id: b.id, cx: b.cx, cy: b.cy, win: true, t: Date.now() }])
-            setCoinAnims(a => [...a, { id: b.id, amt: win, t: Date.now() }])
-            hasWin = true
-            return { ...b, hit: true, resolved: true }
-          }
+    setBets(prev => prev.map(b => {
+      if (b.resolved) return b
+      for (let t = 0; t <= 1; t += 0.1) {
+        const px = fromX + (toX - fromX) * t
+        const py = fromY + (toY - fromY) * t
+        if (Math.floor(px * GRID_COLS) === b.cx && Math.floor(py * GRID_ROWS) === b.cy) {
+          const win = Math.floor(BET_COST * b.mult)
+          setCoins(c => c + win)
+          setWins(w => w + 1)
+          setEffects(e => [...e, { id: b.id, cx: b.cx, cy: b.cy, win: true, t: Date.now() }])
+          setCoinAnims(a => [...a, { id: b.id, amt: win, t: Date.now() }])
+          return { ...b, resolved: true }
         }
-        return b
-      })
-      return updated
-    })
+      }
+      return b
+    }))
   }, [])
   checkBetsRef.current = checkBets
 
@@ -256,13 +248,11 @@ function App() {
 
   const placeBet = useCallback((cx, cy) => {
     if (coins < BET_COST || bets.find(b => b.cx === cx && b.cy === cy && !b.resolved)) return
-    const mult = getMultiplier(cx, cy, ballPos.x, ballPos.y)
-    const { ball } = game.current
     setCoins(c => c - BET_COST)
     setBets(prev => [...prev, {
-      id: Date.now() + Math.random(), cx, cy, mult,
+      id: Date.now(), cx, cy,
+      mult: getMultiplier(cx, cy, ballPos.x, ballPos.y),
       end: Date.now() + BET_DURATION,
-      hit: Math.floor(ball.x * GRID_COLS) === cx && Math.floor(ball.y * GRID_ROWS) === cy,
       resolved: false,
     }])
   }, [coins, bets, ballPos])
