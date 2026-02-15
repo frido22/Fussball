@@ -21,7 +21,7 @@ const getMultiplier = (cx, cy, bx, by) => {
 }
 
 function App() {
-  const [ballPos, setBallPos] = useState({ x: 0.5, y: 0.5 })
+  const [ballPos, setBallPos] = useState({ x: 0.48, y: 0.5 })
   const [coins, setCoins] = useState(STARTING_COINS)
   const [wins, setWins] = useState(0)
   const [losses, setLosses] = useState(0)
@@ -35,9 +35,10 @@ function App() {
   const playersB = useRef(TEAM_B_BASE.map((p, i) => ({ ...p, id: i })))
 
   const game = useRef({
-    ball: { x: 0.5, y: 0.5 }, poss: 'A', carrier: 9,
-    phase: 'dribble', passFrom: null, passTo: null, passT: 0,
-    shotTarget: null, shotT: 0, actionTime: Date.now(), dribbleDir: { x: 0, y: 0 },
+    ball: { x: 0.48, y: 0.5 }, poss: 'A', carrier: 9,
+    phase: 'dribble', passFrom: null, passTo: null, passT: 0, passSpeed: 0.6,
+    shotTarget: null, shotT: 0, actionTime: Date.now() + 1000, dribbleDir: { x: 0, y: 0 },
+    interceptChecked: false,
   })
 
   useEffect(() => {
@@ -69,13 +70,13 @@ function App() {
         const inShootRange = Math.abs(carrier.x - goalX) < 0.15
         const timeDribbling = time - g.actionTime
 
-        if (inShootRange && Math.random() < 0.015) {
+        if (inShootRange && timeDribbling > 500 && Math.random() < 0.008) {
           g.phase = 'shoot'
           g.shotTarget = { x: goalX, y: 0.4 + Math.random() * 0.2 }
           g.passFrom = { x: carrier.x, y: carrier.y }
           g.shotT = 0
           g.actionTime = time
-        } else if (timeDribbling > 1200 && (pressure > 0.5 || timeDribbling > 3000 || Math.random() < 0.008)) {
+        } else if (timeDribbling > 1500 && (pressure > 0.6 || timeDribbling > 3500 || Math.random() < 0.005)) {
           const targets = attacking.filter((p, i) => i !== g.carrier && p.role !== 'GK')
           if (targets.length) {
             const best = targets.reduce((best, p) => {
@@ -89,6 +90,8 @@ function App() {
             g.passFrom = { x: carrier.x, y: carrier.y }
             g.passTo = { x: best.x, y: best.y, id: best.id }
             g.passT = 0
+            g.passSpeed = 0.5 + Math.random() * 0.3
+            g.interceptChecked = false
             g.actionTime = time
           }
         }
@@ -97,19 +100,25 @@ function App() {
 
       // === PASS ===
       if (g.phase === 'pass' && g.passTo) {
-        g.passT += dt * (0.5 + Math.random() * 0.25)
+        g.passT += dt * g.passSpeed
         const t = Math.min(g.passT, 1)
         const ease = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2
         g.ball.x = lerp(g.passFrom.x, g.passTo.x, ease)
         g.ball.y = lerp(g.passFrom.y, g.passTo.y, ease)
 
-        const interceptor = defending.find(d => d.role !== 'GK' && dist(d, g.ball) < 0.06)
-        if (interceptor && Math.random() < 0.4) {
-          g.poss = g.poss === 'A' ? 'B' : 'A'
-          g.carrier = interceptor.id
-          g.phase = 'dribble'
-          g.actionTime = time
-        } else if (t >= 1) {
+        // Check interception only once at midpoint
+        if (!g.interceptChecked && t > 0.4 && t < 0.6) {
+          g.interceptChecked = true
+          const interceptor = defending.find(d => d.role !== 'GK' && dist(d, g.ball) < 0.08)
+          if (interceptor && Math.random() < 0.25) {
+            g.poss = g.poss === 'A' ? 'B' : 'A'
+            g.carrier = interceptor.id
+            g.phase = 'dribble'
+            g.actionTime = time
+          }
+        }
+
+        if (t >= 1 && g.phase === 'pass') {
           g.carrier = g.passTo.id
           g.phase = 'dribble'
           g.passTo = null
@@ -119,7 +128,7 @@ function App() {
 
       // === SHOOT ===
       if (g.phase === 'shoot' && g.shotTarget) {
-        g.shotT += dt * 0.9
+        g.shotT += dt * 0.8
         const t = Math.min(g.shotT, 1)
         g.ball.x = lerp(g.passFrom.x, g.shotTarget.x, t)
         g.ball.y = lerp(g.passFrom.y, g.shotTarget.y, t)
@@ -131,7 +140,7 @@ function App() {
           g.ball = { x: g.poss === 'A' ? 0.06 : 0.94, y: 0.5 }
           g.phase = 'dribble'
           g.shotTarget = null
-          g.actionTime = time + 500
+          g.actionTime = time + 800
         }
       }
 
@@ -139,28 +148,28 @@ function App() {
       const moveTeam = (players, base, isAtt) => {
         players.forEach((p, i) => {
           const b = base[i]
-          let tx = b.x + (g.ball.x - 0.5) * 0.2
-          let ty = b.y + (g.ball.y - 0.5) * 0.15
-          tx += isAtt ? 0.06 : -0.04
+          let tx = b.x + (g.ball.x - 0.5) * 0.18
+          let ty = b.y + (g.ball.y - 0.5) * 0.12
+          tx += isAtt ? 0.05 : -0.03
 
           if (isAtt && g.carrier === i && g.phase === 'dribble') {
-            tx = p.x + g.dribbleDir.x * 0.08
-            ty = p.y + g.dribbleDir.y * 0.05
+            tx = p.x + g.dribbleDir.x * 0.06
+            ty = p.y + g.dribbleDir.y * 0.04
           }
           if (!isAtt && p.role === 'DEF') {
             const attCarrier = attacking[g.carrier]
-            if (attCarrier && dist(p, attCarrier) < 0.3) {
-              tx = lerp(tx, attCarrier.x, 0.3)
-              ty = lerp(ty, attCarrier.y, 0.2)
+            if (attCarrier && dist(p, attCarrier) < 0.25) {
+              tx = lerp(tx, attCarrier.x, 0.25)
+              ty = lerp(ty, attCarrier.y, 0.15)
             }
           }
           if (!isAtt && p.role === 'MID') {
-            tx = lerp(tx, g.ball.x, 0.15)
-            ty = lerp(ty, g.ball.y, 0.1)
+            tx = lerp(tx, g.ball.x, 0.12)
+            ty = lerp(ty, g.ball.y, 0.08)
           }
 
-          p.x = lerp(p.x, clamp(tx, 0.04, 0.96), dt * 1.2)
-          p.y = lerp(p.y, clamp(ty, 0.06, 0.94), dt * 1.2)
+          p.x = lerp(p.x, clamp(tx, 0.04, 0.96), dt * 1.5)
+          p.y = lerp(p.y, clamp(ty, 0.06, 0.94), dt * 1.5)
         })
       }
 
@@ -241,7 +250,7 @@ function App() {
     const c = team === 'A' ? '#dc2626' : '#2563eb'
     const s = team === 'A' ? '#991b1b' : '#1d4ed8'
     return (
-      <div className="absolute pointer-events-none" style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, transform: 'translate(-50%, -50%)', zIndex: carrier ? 20 : 10 }}>
+      <div className="absolute pointer-events-none" style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, transform: 'translate(-50%, -50%)', zIndex: carrier ? 15 : 10 }}>
         <div className="absolute bg-black/25 rounded-full" style={{ width: 18, height: 7, left: -2, top: 17, filter: 'blur(1px)' }} />
         <div className="rounded-t-full" style={{ width: 14, height: 11, backgroundColor: c, border: '1px solid rgba(255,255,255,0.3)' }} />
         <div style={{ width: 14, height: 5, backgroundColor: s, marginTop: -1 }} />
@@ -253,37 +262,6 @@ function App() {
         <div className="absolute rounded-t-full" style={{ width: 9, height: 4, backgroundColor: team === 'A' ? '#4a3728' : '#1a1a1a', top: -7, left: 2.5 }} />
       </div>
     )
-  }
-
-  const Grid = () => {
-    const now = Date.now()
-    return [...Array(GRID_ROWS)].map((_, y) => [...Array(GRID_COLS)].map((_, x) => {
-      const mult = getMultiplier(x, y, ballPos.x, ballPos.y)
-      const bet = bets.find(b => b.cx === x && b.cy === y && !b.resolved)
-      const fx = effects.find(e => e.cx === x && e.cy === y)
-      const hover = hovered?.x === x && hovered?.y === y
-      const left = bet ? Math.max(0, (bet.end - now) / 1000) : 0
-
-      let bg = 'transparent', border = 'rgba(255,255,255,0.05)'
-      if (hover && !bet) {
-        bg = mult <= 2 ? 'rgba(34,197,94,0.25)' : mult <= 5 ? 'rgba(234,179,8,0.25)' : 'rgba(249,115,22,0.25)'
-        border = 'rgba(255,255,255,0.3)'
-      }
-      if (bet) { bg = 'rgba(59,130,246,0.4)'; border = 'rgba(59,130,246,0.7)' }
-      if (fx) bg = fx.win ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.5)'
-
-      return (
-        <div key={`${x}-${y}`} onClick={() => placeBet(x, y)} onMouseEnter={() => setHovered({ x, y })} onMouseLeave={() => setHovered(null)}
-          className="absolute cursor-pointer flex flex-col items-center justify-center transition-all duration-150"
-          style={{ left: `${x / GRID_COLS * 100}%`, top: `${y / GRID_ROWS * 100}%`, width: `${100 / GRID_COLS}%`, height: `${100 / GRID_ROWS}%`,
-            backgroundColor: bg, borderRight: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
-          {(hover || bet) && <span className="text-white font-bold text-[11px]" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
-            {bet ? `${left.toFixed(1)}s` : `${mult.toFixed(1)}x`}
-          </span>}
-          {bet && <span className="text-white/70 text-[9px]">{bet.mult.toFixed(1)}x</span>}
-        </div>
-      )
-    }))
   }
 
   const g = game.current
@@ -322,11 +300,45 @@ function App() {
           <rect x="-2" y="32" width="4" height="16" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
           <rect x="118" y="32" width="4" height="16" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
         </svg>
-        <div className="absolute inset-0"><Grid /></div>
+
+        {/* Grid - clickable layer on top */}
+        <div className="absolute inset-0" style={{ zIndex: 20 }}>
+          {[...Array(GRID_ROWS)].map((_, y) => [...Array(GRID_COLS)].map((_, x) => {
+            const mult = getMultiplier(x, y, ballPos.x, ballPos.y)
+            const bet = bets.find(b => b.cx === x && b.cy === y && !b.resolved)
+            const fx = effects.find(e => e.cx === x && e.cy === y)
+            const hover = hovered?.x === x && hovered?.y === y
+            const left = bet ? Math.max(0, (bet.end - Date.now()) / 1000) : 0
+
+            let bg = 'transparent', border = 'rgba(255,255,255,0.05)'
+            if (hover && !bet) {
+              bg = mult <= 2 ? 'rgba(34,197,94,0.3)' : mult <= 5 ? 'rgba(234,179,8,0.3)' : 'rgba(249,115,22,0.3)'
+              border = 'rgba(255,255,255,0.4)'
+            }
+            if (bet) { bg = 'rgba(59,130,246,0.5)'; border = 'rgba(59,130,246,0.8)' }
+            if (fx) bg = fx.win ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.5)'
+
+            return (
+              <div key={`${x}-${y}`} onClick={() => placeBet(x, y)} onMouseEnter={() => setHovered({ x, y })} onMouseLeave={() => setHovered(null)}
+                className="absolute cursor-pointer flex flex-col items-center justify-center"
+                style={{ left: `${x / GRID_COLS * 100}%`, top: `${y / GRID_ROWS * 100}%`, width: `${100 / GRID_COLS}%`, height: `${100 / GRID_ROWS}%`,
+                  backgroundColor: bg, borderRight: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
+                {(hover || bet) && <span className="text-white font-bold text-[11px]" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+                  {bet ? `${left.toFixed(1)}s` : `${mult.toFixed(1)}x`}
+                </span>}
+                {bet && <span className="text-white/70 text-[9px]">{bet.mult.toFixed(1)}x</span>}
+              </div>
+            )
+          }))}
+        </div>
+
+        {/* Players - below grid for clicks */}
         {teamA.map(p => <Player key={`A${p.id}`} p={p} team="A" carrier={g.poss === 'A' && g.carrier === p.id} />)}
         {teamB.map(p => <Player key={`B${p.id}`} p={p} team="B" carrier={g.poss === 'B' && g.carrier === p.id} />)}
-        <div className="absolute rounded-full bg-black/30 pointer-events-none" style={{ left: `${ballPos.x * 100}%`, top: `${ballPos.y * 100 + 1.8}%`, width: 12, height: 5, transform: 'translate(-50%, -50%)', filter: 'blur(1px)' }} />
-        <div className="absolute rounded-full pointer-events-none" style={{ left: `${ballPos.x * 100}%`, top: `${ballPos.y * 100}%`, width: 14, height: 14, transform: 'translate(-50%, -50%)', background: 'radial-gradient(circle at 35% 35%, #fff 0%, #e8e8e8 60%, #ccc 100%)', boxShadow: '0 2px 4px rgba(0,0,0,0.4)', zIndex: 25 }}>
+
+        {/* Ball */}
+        <div className="absolute rounded-full bg-black/30 pointer-events-none" style={{ left: `${ballPos.x * 100}%`, top: `${ballPos.y * 100 + 1.8}%`, width: 12, height: 5, transform: 'translate(-50%, -50%)', filter: 'blur(1px)', zIndex: 5 }} />
+        <div className="absolute rounded-full pointer-events-none" style={{ left: `${ballPos.x * 100}%`, top: `${ballPos.y * 100}%`, width: 14, height: 14, transform: 'translate(-50%, -50%)', background: 'radial-gradient(circle at 35% 35%, #fff 0%, #e8e8e8 60%, #ccc 100%)', boxShadow: '0 2px 4px rgba(0,0,0,0.4)', zIndex: 5 }}>
           <svg className="w-full h-full" viewBox="0 0 14 14">
             <circle cx="7" cy="7" r="2.5" fill="#222" opacity="0.7" />
             <circle cx="3.5" cy="4" r="1.5" fill="#222" opacity="0.5" />
@@ -335,7 +347,8 @@ function App() {
             <circle cx="11" cy="10" r="1.5" fill="#222" opacity="0.5" />
           </svg>
         </div>
-        {coinAnims.map(a => <div key={a.id} className="absolute text-yellow-400 font-bold text-xl pointer-events-none" style={{ left: '50%', top: '40%', animation: 'coinFloat 1.2s ease-out forwards' }}>+{a.amt}</div>)}
+
+        {coinAnims.map(a => <div key={a.id} className="absolute text-yellow-400 font-bold text-xl pointer-events-none" style={{ left: '50%', top: '40%', animation: 'coinFloat 1.2s ease-out forwards', zIndex: 30 }}>+{a.amt}</div>)}
       </div>
 
       <div className="mt-3 flex gap-4 text-[10px] sm:text-xs text-white/50">
