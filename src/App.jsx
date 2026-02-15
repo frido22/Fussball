@@ -28,59 +28,56 @@ function App() {
   const [bets, setBets] = useState([])
   const [effects, setEffects] = useState([])
   const [coinAnims, setCoinAnims] = useState([])
-  const [teamA, setTeamA] = useState(TEAM_A_BASE.map((p, i) => ({ ...p, id: i })))
-  const [teamB, setTeamB] = useState(TEAM_B_BASE.map((p, i) => ({ ...p, id: i })))
   const [hovered, setHovered] = useState(null)
+  const [, forceUpdate] = useState(0)
+
+  const playersA = useRef(TEAM_A_BASE.map((p, i) => ({ ...p, id: i })))
+  const playersB = useRef(TEAM_B_BASE.map((p, i) => ({ ...p, id: i })))
 
   const game = useRef({
     ball: { x: 0.5, y: 0.5 }, poss: 'A', carrier: 9,
-    phase: 'dribble', // dribble, pass, shoot, loose
-    passFrom: null, passTo: null, passT: 0,
-    shotTarget: null, shotT: 0,
-    actionTime: Date.now(), dribbleDir: { x: 0, y: 0 },
+    phase: 'dribble', passFrom: null, passTo: null, passT: 0,
+    shotTarget: null, shotT: 0, actionTime: Date.now(), dribbleDir: { x: 0, y: 0 },
   })
 
   useEffect(() => {
+    let animId
     let last = performance.now()
+
     const tick = (now) => {
       const dt = Math.min((now - last) / 1000, 0.05)
       last = now
       const g = game.current
       const time = Date.now()
 
+      const teamA = playersA.current
+      const teamB = playersB.current
       const attacking = g.poss === 'A' ? teamA : teamB
       const defending = g.poss === 'A' ? teamB : teamA
       const goalX = g.poss === 'A' ? 0.95 : 0.05
       const carrier = attacking[g.carrier]
 
-      // Find nearest defender to ball
-      const nearestDef = defending.reduce((best, p) =>
-        dist(p, g.ball) < dist(best, g.ball) ? p : best, defending[0])
+      const nearestDef = defending.reduce((best, p) => dist(p, g.ball) < dist(best, g.ball) ? p : best, defending[0])
       const pressure = Math.max(0, 1 - dist(nearestDef, g.ball) * 8)
 
-      // === DRIBBLE PHASE ===
+      // === DRIBBLE ===
       if (g.phase === 'dribble' && carrier) {
-        // Carrier dribbles toward goal with some randomness
         const toGoal = { x: goalX - carrier.x, y: 0.5 - carrier.y }
         const mag = Math.sqrt(toGoal.x ** 2 + toGoal.y ** 2) || 1
         g.dribbleDir = { x: toGoal.x / mag, y: toGoal.y / mag * 0.3 }
 
-        // Decision: pass, shoot, or keep dribbling
         const inShootRange = Math.abs(carrier.x - goalX) < 0.15
         const timeDribbling = time - g.actionTime
 
         if (inShootRange && Math.random() < 0.02) {
-          // Take a shot!
           g.phase = 'shoot'
           g.shotTarget = { x: goalX, y: 0.4 + Math.random() * 0.2 }
           g.passFrom = { x: carrier.x, y: carrier.y }
           g.shotT = 0
           g.actionTime = time
         } else if (timeDribbling > 800 && (pressure > 0.5 || timeDribbling > 2000 || Math.random() < 0.01)) {
-          // Pass under pressure or after dribbling a while
           const targets = attacking.filter((p, i) => i !== g.carrier && p.role !== 'GK')
           if (targets.length) {
-            // Score passes: forward progress, distance, avoid pressure
             const best = targets.reduce((best, p) => {
               const forward = g.poss === 'A' ? p.x - carrier.x : carrier.x - p.x
               const defDist = defending.reduce((min, d) => Math.min(min, dist(p, d)), 1)
@@ -98,7 +95,7 @@ function App() {
         g.ball = { x: carrier.x, y: carrier.y }
       }
 
-      // === PASS PHASE ===
+      // === PASS ===
       if (g.phase === 'pass' && g.passTo) {
         g.passT += dt * (0.8 + Math.random() * 0.4)
         const t = Math.min(g.passT, 1)
@@ -106,7 +103,6 @@ function App() {
         g.ball.x = lerp(g.passFrom.x, g.passTo.x, ease)
         g.ball.y = lerp(g.passFrom.y, g.passTo.y, ease)
 
-        // Interception check - defender near ball path
         const interceptor = defending.find(d => d.role !== 'GK' && dist(d, g.ball) < 0.06)
         if (interceptor && Math.random() < 0.4) {
           g.poss = g.poss === 'A' ? 'B' : 'A'
@@ -121,7 +117,7 @@ function App() {
         }
       }
 
-      // === SHOOT PHASE ===
+      // === SHOOT ===
       if (g.phase === 'shoot' && g.shotTarget) {
         g.shotT += dt * 1.5
         const t = Math.min(g.shotT, 1)
@@ -129,10 +125,9 @@ function App() {
         g.ball.y = lerp(g.passFrom.y, g.shotTarget.y, t)
 
         if (t >= 1) {
-          // Shot saved or goal - reset to other team's GK
           const saved = Math.random() < 0.85
           g.poss = saved ? (g.poss === 'A' ? 'B' : 'A') : g.poss
-          g.carrier = 0 // GK
+          g.carrier = 0
           g.ball = { x: g.poss === 'A' ? 0.06 : 0.94, y: 0.5 }
           g.phase = 'dribble'
           g.shotTarget = null
@@ -140,61 +135,53 @@ function App() {
         }
       }
 
-      setBallPos({ ...g.ball })
+      // === MOVE PLAYERS ===
+      const moveTeam = (players, base, isAtt) => {
+        players.forEach((p, i) => {
+          const b = base[i]
+          let tx = b.x + (g.ball.x - 0.5) * 0.2
+          let ty = b.y + (g.ball.y - 0.5) * 0.15
+          tx += isAtt ? 0.06 : -0.04
 
-      // === PLAYER MOVEMENT ===
-      const moveTeam = (players, base, isAtt) => players.map((p, i) => {
-        const b = base[i]
-        let tx = b.x, ty = b.y
-
-        // Shift with ball
-        tx += (g.ball.x - 0.5) * 0.2
-        ty += (g.ball.y - 0.5) * 0.15
-
-        // Attack/defend shift
-        tx += isAtt ? 0.06 : -0.04
-
-        // Carrier dribbles toward goal
-        if (isAtt && g.carrier === i && g.phase === 'dribble') {
-          tx = p.x + g.dribbleDir.x * 0.15
-          ty = p.y + g.dribbleDir.y * 0.1
-        }
-
-        // Defenders track ball carrier
-        if (!isAtt && p.role === 'DEF') {
-          const attCarrier = (g.poss === 'A' ? teamA : teamB)[g.carrier]
-          if (attCarrier && dist(p, attCarrier) < 0.3) {
-            tx = lerp(tx, attCarrier.x, 0.3)
-            ty = lerp(ty, attCarrier.y, 0.2)
+          if (isAtt && g.carrier === i && g.phase === 'dribble') {
+            tx = p.x + g.dribbleDir.x * 0.15
+            ty = p.y + g.dribbleDir.y * 0.1
           }
-        }
+          if (!isAtt && p.role === 'DEF') {
+            const attCarrier = attacking[g.carrier]
+            if (attCarrier && dist(p, attCarrier) < 0.3) {
+              tx = lerp(tx, attCarrier.x, 0.3)
+              ty = lerp(ty, attCarrier.y, 0.2)
+            }
+          }
+          if (!isAtt && p.role === 'MID') {
+            tx = lerp(tx, g.ball.x, 0.15)
+            ty = lerp(ty, g.ball.y, 0.1)
+          }
 
-        // Midfielders press ball
-        if (!isAtt && p.role === 'MID') {
-          tx = lerp(tx, g.ball.x, 0.15)
-          ty = lerp(ty, g.ball.y, 0.1)
-        }
+          p.x = lerp(p.x, clamp(tx, 0.04, 0.96), dt * 2)
+          p.y = lerp(p.y, clamp(ty, 0.06, 0.94), dt * 2)
+        })
+      }
 
-        tx = clamp(tx, 0.04, 0.96)
-        ty = clamp(ty, 0.06, 0.94)
+      moveTeam(teamA, TEAM_A_BASE, g.poss === 'A')
+      moveTeam(teamB, TEAM_B_BASE, g.poss === 'B')
 
-        return { ...p, x: lerp(p.x, tx, dt * 2), y: lerp(p.y, ty, dt * 2) }
-      })
-
-      setTeamA(prev => moveTeam(prev, TEAM_A_BASE, g.poss === 'A'))
-      setTeamB(prev => moveTeam(prev, TEAM_B_BASE, g.poss === 'B'))
-
-      requestAnimationFrame(tick)
+      setBallPos({ ...g.ball })
+      forceUpdate(n => n + 1)
+      animId = requestAnimationFrame(tick)
     }
-    requestAnimationFrame(tick)
-  }, [teamA, teamB])
+
+    animId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(animId)
+  }, [])
 
   // Bet checking
   useEffect(() => {
     const check = () => {
       const { ball } = game.current
       const cx = Math.floor(ball.x * GRID_COLS), cy = Math.floor(ball.y * GRID_ROWS)
-      setBets(prev => prev.map(b => b.resolved || (cx === b.cx && cy === b.cy) ? { ...b, hit: b.hit || (cx === b.cx && cy === b.cy) } : b))
+      setBets(prev => prev.map(b => !b.resolved && cx === b.cx && cy === b.cy ? { ...b, hit: true } : b))
     }
     const i = setInterval(check, 16)
     return () => clearInterval(i)
@@ -300,6 +287,9 @@ function App() {
   }
 
   const g = game.current
+  const teamA = playersA.current
+  const teamB = playersB.current
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center p-2 sm:p-4">
       <div className="w-full max-w-4xl mb-3 flex justify-between items-center px-2">
