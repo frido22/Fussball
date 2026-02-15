@@ -33,9 +33,10 @@ function App() {
 
   const playersA = useRef(TEAM_A_BASE.map((p, i) => ({ ...p, id: i })))
   const playersB = useRef(TEAM_B_BASE.map((p, i) => ({ ...p, id: i })))
+  const checkBetsRef = useRef(() => {})
 
   const game = useRef({
-    ball: { x: 0.48, y: 0.5 }, poss: 'A', carrier: 9,
+    ball: { x: 0.48, y: 0.5 }, lastBall: { x: 0.48, y: 0.5 }, poss: 'A', carrier: 9,
     phase: 'dribble', passFrom: null, passTo: null, passT: 0, passSpeed: 0.6,
     shotTarget: null, shotT: 0, actionTime: Date.now() + 1000, dribbleDir: { x: 0, y: 0 },
     interceptChecked: false,
@@ -176,6 +177,12 @@ function App() {
       moveTeam(teamA, TEAM_A_BASE, g.poss === 'A')
       moveTeam(teamB, TEAM_B_BASE, g.poss === 'B')
 
+      // Check bets along ball path
+      if (g.lastBall.x !== g.ball.x || g.lastBall.y !== g.ball.y) {
+        checkBetsRef.current(g.lastBall.x, g.lastBall.y, g.ball.x, g.ball.y)
+        g.lastBall = { ...g.ball }
+      }
+
       setBallPos({ ...g.ball })
       forceUpdate(n => n + 1)
       animId = requestAnimationFrame(tick)
@@ -185,16 +192,21 @@ function App() {
     return () => cancelAnimationFrame(animId)
   }, [])
 
-  // Bet checking
-  useEffect(() => {
-    const check = () => {
-      const { ball } = game.current
-      const cx = Math.floor(ball.x * GRID_COLS), cy = Math.floor(ball.y * GRID_ROWS)
-      setBets(prev => prev.map(b => !b.resolved && cx === b.cx && cy === b.cy ? { ...b, hit: true } : b))
-    }
-    const i = setInterval(check, 16)
-    return () => clearInterval(i)
+  // Bet checking - check along ball path for fast-moving ball
+  const checkBets = useCallback((fromX, fromY, toX, toY) => {
+    setBets(prev => prev.map(b => {
+      if (b.resolved || b.hit) return b
+      // Check multiple points along the path
+      for (let t = 0; t <= 1; t += 0.1) {
+        const px = fromX + (toX - fromX) * t
+        const py = fromY + (toY - fromY) * t
+        const cx = Math.floor(px * GRID_COLS), cy = Math.floor(py * GRID_ROWS)
+        if (cx === b.cx && cy === b.cy) return { ...b, hit: true }
+      }
+      return b
+    }))
   }, [])
+  checkBetsRef.current = checkBets
 
   // Bet resolution
   useEffect(() => {
