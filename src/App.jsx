@@ -69,13 +69,13 @@ function App() {
         const inShootRange = Math.abs(carrier.x - goalX) < 0.15
         const timeDribbling = time - g.actionTime
 
-        if (inShootRange && Math.random() < 0.02) {
+        if (inShootRange && Math.random() < 0.015) {
           g.phase = 'shoot'
           g.shotTarget = { x: goalX, y: 0.4 + Math.random() * 0.2 }
           g.passFrom = { x: carrier.x, y: carrier.y }
           g.shotT = 0
           g.actionTime = time
-        } else if (timeDribbling > 800 && (pressure > 0.5 || timeDribbling > 2000 || Math.random() < 0.01)) {
+        } else if (timeDribbling > 1200 && (pressure > 0.5 || timeDribbling > 3000 || Math.random() < 0.008)) {
           const targets = attacking.filter((p, i) => i !== g.carrier && p.role !== 'GK')
           if (targets.length) {
             const best = targets.reduce((best, p) => {
@@ -97,7 +97,7 @@ function App() {
 
       // === PASS ===
       if (g.phase === 'pass' && g.passTo) {
-        g.passT += dt * (0.8 + Math.random() * 0.4)
+        g.passT += dt * (0.5 + Math.random() * 0.25)
         const t = Math.min(g.passT, 1)
         const ease = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2
         g.ball.x = lerp(g.passFrom.x, g.passTo.x, ease)
@@ -119,7 +119,7 @@ function App() {
 
       // === SHOOT ===
       if (g.phase === 'shoot' && g.shotTarget) {
-        g.shotT += dt * 1.5
+        g.shotT += dt * 0.9
         const t = Math.min(g.shotT, 1)
         g.ball.x = lerp(g.passFrom.x, g.shotTarget.x, t)
         g.ball.y = lerp(g.passFrom.y, g.shotTarget.y, t)
@@ -144,8 +144,8 @@ function App() {
           tx += isAtt ? 0.06 : -0.04
 
           if (isAtt && g.carrier === i && g.phase === 'dribble') {
-            tx = p.x + g.dribbleDir.x * 0.15
-            ty = p.y + g.dribbleDir.y * 0.1
+            tx = p.x + g.dribbleDir.x * 0.08
+            ty = p.y + g.dribbleDir.y * 0.05
           }
           if (!isAtt && p.role === 'DEF') {
             const attCarrier = attacking[g.carrier]
@@ -159,8 +159,8 @@ function App() {
             ty = lerp(ty, g.ball.y, 0.1)
           }
 
-          p.x = lerp(p.x, clamp(tx, 0.04, 0.96), dt * 2)
-          p.y = lerp(p.y, clamp(ty, 0.06, 0.94), dt * 2)
+          p.x = lerp(p.x, clamp(tx, 0.04, 0.96), dt * 1.2)
+          p.y = lerp(p.y, clamp(ty, 0.06, 0.94), dt * 1.2)
         })
       }
 
